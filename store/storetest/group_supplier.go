@@ -354,9 +354,7 @@ func testGroupStoreDelete(t *testing.T, ss store.Store) {
 
 	// Check the group is deleted
 	res4 := <-ss.Group().Get(d1.Id)
-	assert.Nil(t, res4.Err)
-	d2 := res4.Data.(*model.Group)
-	assert.NotZero(t, d2.DeleteAt)
+	assert.Equal(t, res4.Err.Id, "store.sql_group.no_rows")
 
 	// Check the after count
 	res5 := <-ss.Group().GetAllPage(0, 999)
@@ -371,7 +369,7 @@ func testGroupStoreDelete(t *testing.T, ss store.Store) {
 
 	// Cannot delete again
 	res8 := <-ss.Group().Delete(d1.Id)
-	assert.Equal(t, res8.Err.Id, "store.sql_group.already_deleted")
+	assert.Equal(t, res8.Err.Id, "store.sql_group.no_rows")
 }
 
 func testGroupCreateMember(t *testing.T, ss store.Store) {
@@ -454,7 +452,7 @@ func testGroupDeleteMember(t *testing.T, ss store.Store) {
 
 	// Delete an already deleted member
 	res5 := <-ss.Group().DeleteMember(group.Id, user.Id)
-	assert.Equal(t, res5.Err.Id, "store.sql_group.already_deleted")
+	assert.Equal(t, res5.Err.Id, "store.sql_group.no_rows")
 
 	// Delete with invalid UserId
 	res6 := <-ss.Group().DeleteMember(group.Id, strings.Repeat("x", 27))

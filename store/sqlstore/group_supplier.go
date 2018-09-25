@@ -100,7 +100,7 @@ func (s *SqlSupplier) GroupGet(ctx context.Context, groupId string, hints ...sto
 	result := store.NewSupplierResult()
 
 	var group *model.Group
-	if err := s.GetReplica().SelectOne(&group, "SELECT * from Groups WHERE Id = :Id", map[string]interface{}{"Id": groupId}); err != nil {
+	if err := s.GetReplica().SelectOne(&group, "SELECT * from Groups WHERE Id = :Id AND DeleteAt = 0", map[string]interface{}{"Id": groupId}); err != nil {
 		if err == sql.ErrNoRows {
 			result.Err = model.NewAppError("SqlGroupStore.GroupGet", "store.sql_group.no_rows", nil, err.Error(), http.StatusInternalServerError)
 		} else {
@@ -134,7 +134,7 @@ func (s *SqlSupplier) GroupUpdate(ctx context.Context, group *model.Group, hints
 	result := store.NewSupplierResult()
 
 	var retrievedGroup *model.Group
-	if err := s.GetMaster().SelectOne(&retrievedGroup, "SELECT * FROM Groups WHERE Id = :Id", map[string]interface{}{"Id": group.Id}); err != nil {
+	if err := s.GetMaster().SelectOne(&retrievedGroup, "SELECT * FROM Groups WHERE Id = :Id AND DeleteAt = 0", map[string]interface{}{"Id": group.Id}); err != nil {
 		if err == sql.ErrNoRows {
 			result.Err = model.NewAppError("SqlGroupStore.GroupUpdate", "store.sql_group.no_rows", nil, "id="+group.Id+","+err.Error(), http.StatusNotFound)
 		} else {
@@ -175,18 +175,13 @@ func (s *SqlSupplier) GroupDelete(ctx context.Context, groupID string, hints ...
 	}
 
 	var group *model.Group
-	if err := s.GetReplica().SelectOne(&group, "SELECT * from Groups WHERE Id = :Id", map[string]interface{}{"Id": groupID}); err != nil {
+	if err := s.GetReplica().SelectOne(&group, "SELECT * from Groups WHERE Id = :Id AND DeleteAt = 0", map[string]interface{}{"Id": groupID}); err != nil {
 		if err == sql.ErrNoRows {
 			result.Err = model.NewAppError("SqlGroupStore.GroupDelete", "store.sql_group.no_rows", nil, "Id="+groupID+", "+err.Error(), http.StatusNotFound)
 		} else {
 			result.Err = model.NewAppError("SqlGroupStore.GroupDelete", "store.sql_group.select_error", nil, err.Error(), http.StatusInternalServerError)
 		}
 
-		return result
-	}
-
-	if group.DeleteAt != 0 {
-		result.Err = model.NewAppError("SqlGroupStore.GroupDelete", "store.sql_group.already_deleted", nil, "group_id="+groupID, http.StatusInternalServerError)
 		return result
 	}
 
@@ -228,7 +223,7 @@ func (s *SqlSupplier) GroupCreateMember(ctx context.Context, groupID string, use
 	}
 
 	var retrievedMember *model.GroupMember
-	if err := s.GetMaster().SelectOne(&retrievedMember, "SELECT * FROM GroupMembers WHERE GroupId = :GroupId AND UserId = :UserId", map[string]interface{}{"GroupId": member.GroupId, "UserId": member.UserId}); err != nil {
+	if err := s.GetMaster().SelectOne(&retrievedMember, "SELECT * FROM GroupMembers WHERE GroupId = :GroupId AND UserId = :UserId AND DeleteAt = 0", map[string]interface{}{"GroupId": member.GroupId, "UserId": member.UserId}); err != nil {
 		if err == sql.ErrNoRows {
 			result.Err = model.NewAppError("SqlGroupStore.GroupCreateMember", "store.sql_group.no_rows", nil, "group_id="+member.GroupId+"user_id="+member.UserId+","+err.Error(), http.StatusNotFound)
 		} else {
@@ -253,17 +248,12 @@ func (s *SqlSupplier) GroupDeleteMember(ctx context.Context, groupID string, use
 	}
 
 	var retrievedMember *model.GroupMember
-	if err := s.GetMaster().SelectOne(&retrievedMember, "SELECT * FROM GroupMembers WHERE GroupId = :GroupId AND UserId = :UserId", map[string]interface{}{"GroupId": groupID, "UserId": userID}); err != nil {
+	if err := s.GetMaster().SelectOne(&retrievedMember, "SELECT * FROM GroupMembers WHERE GroupId = :GroupId AND UserId = :UserId AND DeleteAt = 0", map[string]interface{}{"GroupId": groupID, "UserId": userID}); err != nil {
 		if err == sql.ErrNoRows {
 			result.Err = model.NewAppError("SqlGroupStore.GroupDeleteMember", "store.sql_group.no_rows", nil, "group_id="+groupID+"user_id="+userID+","+err.Error(), http.StatusNotFound)
 			return result
 		}
 		result.Err = model.NewAppError("SqlGroupStore.GroupDeleteMember", "store.sql_group.select_error", nil, "group_id="+groupID+"user_id="+userID+","+err.Error(), http.StatusInternalServerError)
-		return result
-	}
-
-	if retrievedMember.DeleteAt != 0 {
-		result.Err = model.NewAppError("SqlGroupStore.GroupDeleteMember", "store.sql_group.already_deleted", nil, "group_id="+groupID+"user_id="+userID, http.StatusInternalServerError)
 		return result
 	}
 
@@ -401,7 +391,7 @@ func (s *SqlSupplier) GroupGetAllGroupSyncablesByGroupPage(ctx context.Context, 
 	var groupSyncableScanners []*GroupSyncableScanner
 	groupSyncables := []*model.GroupSyncable{}
 
-	sqlQuery := fmt.Sprintf("SELECT * from Group%[1]ss WHERE GroupId = :GroupId ORDER BY CreateAt DESC LIMIT :Limit OFFSET :Offset", syncableType.String())
+	sqlQuery := fmt.Sprintf("SELECT * from Group%[1]ss WHERE GroupId = :GroupId AND DeleteAt = 0 ORDER BY CreateAt DESC LIMIT :Limit OFFSET :Offset", syncableType.String())
 
 	if _, err := s.GetReplica().Select(&groupSyncableScanners, sqlQuery, map[string]interface{}{"GroupId": groupID, "Limit": limit, "Offset": offset}); err != nil {
 		if err == sql.ErrNoRows {
@@ -536,14 +526,12 @@ func (s *SqlSupplier) GroupDeleteGroupSyncable(ctx context.Context, groupID stri
 			TeamId:        groupSyncable.SyncableId,
 		}
 		rowsAffected, err = s.GetMaster().Update(groupTeam)
-		fmt.Printf("\n%#v\n\n", groupTeam)
 	case model.GSChannel:
 		groupChannel := &GroupChannel{
 			GroupSyncable: *groupSyncable,
 			ChannelId:     groupSyncable.SyncableId,
 		}
 		rowsAffected, err = s.GetMaster().Update(groupChannel)
-		fmt.Printf("\n%#v\n\n", groupChannel)
 	default:
 		model.NewAppError("SqlGroupStore.GroupDeleteGroupSyncable", "store.sql_group.invalid_syncable_type", nil, "group_id="+groupSyncable.GroupId+", syncable_id="+groupSyncable.SyncableId+", "+err.Error(), http.StatusInternalServerError)
 		return result
