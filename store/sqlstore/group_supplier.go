@@ -134,7 +134,7 @@ func (s *SqlSupplier) GroupUpdate(ctx context.Context, group *model.Group, hints
 	result := store.NewSupplierResult()
 
 	var retrievedGroup *model.Group
-	if err := s.GetMaster().SelectOne(&retrievedGroup, "SELECT * FROM Groups WHERE Id = :Id AND DeleteAt = 0", map[string]interface{}{"Id": group.Id}); err != nil {
+	if err := s.GetMaster().SelectOne(&retrievedGroup, "SELECT * FROM Groups WHERE Id = :Id", map[string]interface{}{"Id": group.Id}); err != nil {
 		if err == sql.ErrNoRows {
 			result.Err = model.NewAppError("SqlGroupStore.GroupUpdate", "store.sql_group.no_rows", nil, "id="+group.Id+","+err.Error(), http.StatusNotFound)
 		} else {
@@ -143,8 +143,13 @@ func (s *SqlSupplier) GroupUpdate(ctx context.Context, group *model.Group, hints
 		return result
 	}
 
+	// If updating DeleteAt it can only be to 0
+	if group.DeleteAt != retrievedGroup.DeleteAt && group.DeleteAt != 0 {
+		result.Err = model.NewAppError("SqlGroupStore.GroupUpdate", "store.sql_group.invalid_delete_at", nil, "", http.StatusInternalServerError)
+		return result
+	}
+
 	// Reset these properties, don't update them based on input
-	group.DeleteAt = retrievedGroup.DeleteAt
 	group.CreateAt = retrievedGroup.CreateAt
 	group.UpdateAt = model.GetMillis()
 

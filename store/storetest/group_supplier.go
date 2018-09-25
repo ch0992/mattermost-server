@@ -313,15 +313,24 @@ func testGroupStoreUpdate(t *testing.T, ss store.Store) {
 	})
 	assert.Equal(t, res6.Err.Id, "store.sql_group.update_error")
 
-	// Cannot update CreateAt or DeleteAt
-	origCreateAt := d1.CreateAt
-	origDeleteAt := d1.DeleteAt
-	d1.CreateAt = model.GetMillis()
-	d1.DeleteAt = model.GetMillis()
+	// Cannot update CreateAt
+	someVal := model.GetMillis()
+	d1.CreateAt = someVal
 	res7 := <-ss.Group().Update(d1)
 	d3 := res7.Data.(*model.Group)
-	assert.Equal(t, origCreateAt, d3.CreateAt)
-	assert.Equal(t, origDeleteAt, d3.DeleteAt)
+	assert.NotEqual(t, someVal, d3.CreateAt)
+
+	// Cannot update DeleteAt to non-zero
+	d1.DeleteAt = 1
+	res9 := <-ss.Group().Update(d1)
+	assert.Equal(t, "store.sql_group.invalid_delete_at", res9.Err.Id)
+
+	//...except for 0 for DeleteAt
+	d1.DeleteAt = 0
+	res8 := <-ss.Group().Update(d1)
+	assert.Nil(t, res8.Err)
+	d4 := res8.Data.(*model.Group)
+	assert.Zero(t, d4.DeleteAt)
 }
 
 func testGroupStoreDelete(t *testing.T, ss store.Store) {
