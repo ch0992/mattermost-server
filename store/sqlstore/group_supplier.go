@@ -449,14 +449,19 @@ func (s *SqlSupplier) GroupUpdateGroupSyncable(ctx context.Context, groupSyncabl
 		return result
 	}
 
+	// If updating DeleteAt it can only be to 0
+	if groupSyncable.DeleteAt != retrievedGroupSyncable.DeleteAt && groupSyncable.DeleteAt != 0 {
+		result.Err = model.NewAppError("SqlGroupStore.GroupUpdateGroupSyncable", "store.sql_group.invalid_delete_at", nil, "", http.StatusInternalServerError)
+		return result
+	}
+
 	// Check if no update is required
-	if (retrievedGroupSyncable.AutoAdd == groupSyncable.AutoAdd) && (retrievedGroupSyncable.CanLeave == groupSyncable.CanLeave) {
+	if (retrievedGroupSyncable.AutoAdd == groupSyncable.AutoAdd) && (retrievedGroupSyncable.CanLeave == groupSyncable.CanLeave) && groupSyncable.DeleteAt != 0 {
 		result.Err = model.NewAppError("SqlGroupStore.GroupUpdateGroupSyncable", "store.sql_group.nothing_to_update", nil, "group_id="+groupSyncable.GroupId+", syncable_id="+groupSyncable.SyncableId, http.StatusInternalServerError)
 		return result
 	}
 
 	// Reset these properties, don't update them based on input
-	groupSyncable.DeleteAt = retrievedGroupSyncable.DeleteAt
 	groupSyncable.CreateAt = retrievedGroupSyncable.CreateAt
 	groupSyncable.UpdateAt = model.GetMillis()
 

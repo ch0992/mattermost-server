@@ -4,6 +4,7 @@
 package storetest
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -765,16 +766,26 @@ func testUpdateGroupSyncable(t *testing.T, ss store.Store) {
 
 	// Cannot update CreateAt or DeleteAt
 	origCreateAt := d1.CreateAt
-	origDeleteAt := d1.DeleteAt
 	d1.CreateAt = model.GetMillis()
-	d1.DeleteAt = model.GetMillis()
 	d1.AutoAdd = true
 	d1.CanLeave = true
 	res11 := <-ss.Group().UpdateGroupSyncable(d1)
 	assert.Nil(t, res11.Err)
 	d3 := res11.Data.(*model.GroupSyncable)
 	assert.Equal(t, origCreateAt, d3.CreateAt)
-	assert.Equal(t, origDeleteAt, d3.DeleteAt)
+
+	// Cannot update DeleteAt to arbitrary value
+	d1.DeleteAt = 1
+	res12 := <-ss.Group().UpdateGroupSyncable(d1)
+	assert.Equal(t, "store.sql_group.invalid_delete_at", res12.Err.Id)
+
+	// Can update DeleteAt to 0
+	d1.DeleteAt = 0
+	res13 := <-ss.Group().UpdateGroupSyncable(d1)
+	fmt.Printf("\n%#v\n\n", res13.Err)
+	assert.Nil(t, res13.Err)
+	d4 := res13.Data.(*model.GroupSyncable)
+	assert.Zero(t, d4.DeleteAt)
 }
 
 func testDeleteGroupSyncable(t *testing.T, ss store.Store) {
