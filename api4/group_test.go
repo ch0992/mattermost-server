@@ -20,8 +20,8 @@ func TestGetGroupTeams(t *testing.T)   {}
 func TestUpdateGroupTeam(t *testing.T) {}
 func TestDeleteGroupTeam(t *testing.T) {}
 
-func TestCreateGroupChannel(t *testing.T) {}
-func TestGetGroupChannel(t *testing.T)    {}
-func TestGetGroupChannels(t *testing.T)   {}
-func TestUpdateGroupChannel(t *testing.T) {}
-func TestDeleteGroupChannel(t *testing.T) {}
+func TestCreateGroupChannel2(t *testing.T) {}
+func TestGetGroupChannel(t *testing.T)     {}
+func TestGetGroupChannels(t *testing.T)    {}
+func TestUpdateGroupChannel(t *testing.T)  {}
+func TestDeleteGroupChannel2(t *testing.T) {}
